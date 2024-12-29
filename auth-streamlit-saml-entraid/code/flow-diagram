@@ -1,0 +1,73 @@
+---
+config:
+  theme: default
+  themeVariables:
+    fontFamily: monospace
+  flowchart:
+    rankSpacing: 50
+---
+flowchart TB
+    Start(["👥  User accesses **myapp.com/***"]) --> InitState@{ label: "<span style=\"font-family:\">📍&nbsp;&nbsp;</span>**Initial State**<br>st.session_state = { }<br>authenticated = False<br>cookies = [ ]" }
+    InitState --> GetCookies["🍪&nbsp; **Check cookies**<br>(look for *auth token* in cookies or context headers)"]
+    GetCookies --> TokenCheck@{ label: "❔&nbsp;&nbsp;<span style=\"color:\">👤  </span>**Check active user session**. Is there any *auth token* in session?" }
+    TokenCheck == No ==> NoToken["**❌&nbsp; &nbsp;No Token Found**"]
+    TokenCheck == Yes ==> TokenExistsInSession["✅&nbsp; Token exists in session"]
+    NoToken --> SSORedirect["🚪🔐&nbsp; Redirection to **SSO login URL**<br>*login.microsoftonline.com/**"]
+    SSORedirect --> Credentials@{ label: "<span style=\"color:\">🔓 </span>**Are credentials valid?** <br>(vs IdP)" }
+    Credentials == Yes ==> ValidCreds["🆕&nbsp; Backend returns generated JWT token from SAML response"]
+    Credentials == No ==> InvalidCreds["❌&nbsp; Invalid login"]
+    InvalidCreds -- Retry login --> SSORedirect
+    ValidCreds ==> TokenExistsInSession
+    TokenExistsInSession --> ValidateToken{"🔑&nbsp; **JWT token decoding...**<br> Is it valid?"}
+    ValidateToken == "No<br>(error, expired...)" ==> Rerun@{ label: "<span style=\"color:\">🔁&nbsp; &nbsp;</span>**st.rerun**" }
+    ValidateToken == Yes ==> TokenValid["**Extract Claims**<br>(e.g., username, email, etc.)"]
+    Rerun -- "**authenticated = False** <br>cookies/headers cleared (if existed)" --> NoToken
+    TokenValid --> AuthState["👤&nbsp; **Authenticated state**<br>authenticated = True<br>{username: ..., email: ...}"]
+    AuthState ==> ActiveSession["🟢&nbsp; &nbsp;**Active Session**"]
+    ActiveSession -- 🌐&nbsp; HTTP request to backend --> TokenRefresh@{ label: "<span style=\"color:\">🔁  </span>**Sliding Session**:<br>Extend token expiration (+*ACCESS_TOKEN_REFRESH_MINUTES*)" }
+    ActiveSession -- ⌛&nbsp; User Inactivity (&gt;*ACCESS_TOKEN_EXPIRATION_MINUTES* without requests) --> TokenExpired["⌛ **Token Expired**"]
+    ActiveSession -- 🔄&nbsp; &nbsp;User refreshes browser --> BrowserRefresh["🆕&nbsp; **Clears old session state + opens new session**"]
+    TokenRefresh --> ActiveSession
+    TokenExpired -- 🚫&nbsp; Error 401: Unauthorized --> SSORedirect
+    BrowserRefresh -- **authenticated = False**<br>cookies/headers remain (if existed)--> InitState
+    InitState@{ shape: rect}
+    TokenCheck@{ shape: diamond}
+    Credentials@{ shape: diamond}
+    Rerun@{ shape: rect}
+    TokenRefresh@{ shape: rect}
+     Start:::state
+     Start:::default
+     InitState:::state
+     TokenCheck:::decision
+     NoToken:::error
+     TokenExistsInSession:::correct
+     SSORedirect:::info
+     Credentials:::decision
+     ValidCreds:::correct
+     ValidCreds:::state
+     ValidCreds:::default
+     InvalidCreds:::error
+     ValidateToken:::decision
+     Rerun:::state
+     TokenValid:::state
+     TokenValid:::info
+     AuthState:::state
+     ActiveSession:::active
+     TokenRefresh:::correct
+     TokenExpired:::error
+     BrowserRefresh:::info
+    classDef decision fill:#e1f5fe,stroke:#333,stroke-width:2px
+    classDef error fill:#f8d7da,stroke:#721c24,stroke-width:2px, font:bold
+    classDef correct fill:#cff793,stroke:#333,stroke-width:2px, font:bold
+    classDef info fill:#d1ecf1,stroke:#0c5460,stroke-width:2px
+    classDef success fill:#d4edda,stroke:#155724,stroke-width:2px
+    classDef active fill:#00ff08, stroke:#333, stroke-width:2px, font:bold
+    classDef state fill:#fff3e0, stroke:#333, stroke-width:2px
+    classDef default fill:#f9f9f9, stroke:#333, stroke-width:2px
+    linkStyle 3 stroke:#D50000,fill:none
+    linkStyle 4 stroke:#00C853,fill:none
+    linkStyle 7 stroke:#00C853,fill:none
+    linkStyle 8 stroke:#D50000,fill:none
+    linkStyle 10 stroke:#00C853,fill:none
+    linkStyle 12 stroke:#D50000,fill:none
+    linkStyle 13 stroke:#00C853,fill:none

@@ -1,0 +1,83 @@
+stateDiagram-v2
+    state "🔓 Correct credentials" as CorrectCredentials
+    state "❌🔒 Invalid Credentials" as InvalidCredentials 
+    state "✅ Correct Token" as CorrectToken
+    state "❌ Invalid / Error Token" as InvalidToken
+    state "❌ No Token Found" as NoTokenFound
+    state "✅ Token Exists In Session" as TokenExistsInSession
+    state "⌛ Expired Token" as ExpiredToken
+    state "⌛ Token Expiration" as TokenExpiration
+    state "🟢 Active Session (app expected functioning)" as ActiveSession
+    state "🔁 st.rerun" as st.rerun
+    state "🍪 Check cookies" as CheckCookies
+    state "❔ Check active user session" as TokenCheck
+    state "🔁 Token refresh    (*sliding session**)" as TokenRefresh
+    state "🔑 JWT token decoding..." as ValidateToken
+    state "🆕  Clears old session state + opens new session" as BrowserRefresh
+    state "🖥️ Frontend Application (Streamlit) 🖥️" as Streamlit_Frontend_Application
+    state "🚪🔐 Redirection to **SSO URL** **login.microsoftonline.com/***" as CredentialsRequested
+
+    [*] --> InitialState: 👥   User accesses **myapp.com/***
+    state "Initial State" as InitialState {
+        EmptySession: st.session_state = { }
+        EmptySession: authenticated = False
+        EmptySession: cookies = [ ]
+    }
+    InitialState --> CheckCookies
+    
+    CheckCookies --> TokenCheck: Look for *auth_token* in cookies or context headers
+
+    TokenCheck --> TokenExistsInSession
+    TokenCheck --> NoTokenFound
+    
+    TokenExistsInSession --> ValidateToken
+    NoTokenFound --> CredentialsRequested
+
+    ValidateToken --> ExpiredToken
+    ValidateToken --> InvalidToken
+    ValidateToken --> CorrectToken
+    
+    CredentialsRequested --> CorrectCredentials
+    CredentialsRequested --> InvalidCredentials
+    InvalidCredentials --> CredentialsRequested: Retry login
+    CorrectCredentials --> TokenExistsInSession: Backend returns generated JWT from SAML response
+    
+    ExpiredToken --> st.rerun
+    InvalidToken --> st.rerun
+    st.rerun --> NoTokenFound: **👤 authenticated = False**
+    CorrectToken --> ActiveSession: **👤 authenticated = True {username=..., email=...}**
+    
+    state Streamlit_Frontend_Application {
+        ActiveSession --> TokenRefresh: 🌐 HTTP request to backend
+        ActiveSession --> TokenExpiration: ⌛  **User inactivity** (>*ACCESS_TOKEN_EXPIRATION_TIME* without any request)
+        ActiveSession --> BrowserRefresh: 🔄 User refreshes browser tab
+        
+        TokenRefresh --> ActiveSession: ➕  Update token in **st.session_state** (*exp* time) 
+    }
+    BrowserRefresh --> InitialState
+    TokenExpiration --> CredentialsRequested: **🚫 Error 401 Unauthorized**
+    
+
+    %% Styling
+    classDef errorState fill:#d3d3d3, stroke:#c62828, color:#c62828,font-weight:bold
+    class TokenExpiration errorState
+    class NoTokenFound errorState
+    class InvalidCredentials errorState
+    class ExpiredToken errorState
+    class InvalidToken errorState
+    
+    classDef correctState fill:#d3d3d3, stroke:#008000, color:#008000,font-weight:bold
+    class TokenRefresh correctState
+    class TokenExistsInSession correctState
+    class CorrectCredentials correctState
+    class CorrectToken correctState
+
+    classDef authenticatedState fill:#008000, stroke:#008000,font-weight:bold
+    class AuthenticatedState authenticatedState
+    class ActiveSession authenticatedState
+
+    classDef refreshState fill:#d3d3d3, stroke:#0000FF, color:#0000FF, font-weight:bold
+    class BrowserRefresh refreshState
+
+    classDef sso fill:#ffa500, stroke:#ffa500, color:#000000, font-weight:bold
+    class CredentialsRequested sso
